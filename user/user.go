@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
@@ -51,5 +52,28 @@ func NewHandler(db *gorm.DB) http.HandlerFunc {
 
 		}
 
+	}
+}
+
+type EchoHandle struct {
+	DB *gorm.DB
+}
+
+func (e *EchoHandle) Handler(c echo.Context) error {
+	return nil
+}
+
+func NewEchoHandler(db *gorm.DB) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		var user User
+
+		if err := c.Bind(&user); err != nil {
+
+		}
+
+		if err := db.Create(&user).Error; err != nil {
+
+		}
+		return nil
 	}
 }

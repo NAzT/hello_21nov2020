@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"hello/fizzbuzz"
 	"hello/user"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -15,6 +20,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -41,12 +48,49 @@ func helloEchoHandler(c echo.Context) error {
 	return c.String(http.StatusOK, fb)
 }
 
-func echoRouter() {
+func main() {
+	viper.SetDefault("app.addr", ":8000")
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+	viper.ReadInConfig()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
+	logger, _ := zap.NewProduction()
+	defer logger.Sync()
+
+	zap.ReplaceGlobals(logger)
+
+	db, err := gorm.Open(sqlite.Open("./users.db"), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	e := echo.New()
 	e.Use(middleware.Logger())
 
 	e.GET("/fizzbuzz/:number", helloEchoHandler)
-	e.Start(":8000")
+	e.GET("/auth", credentialEchoHandler)
+	e.POST("/users", user.NewEchoHandler(db))
+	h := user.EchoHandle{DB: db}
+	e.POST("/users", h.Handler)
+	fmt.Println(viper.GetString("app.addr"))
+
+	go func() {
+		if err := e.Start(viper.GetString("app.addr")); err != nil {
+			e.Logger.Info("shutting down the server")
+		}
+	}()
+
+	quit := make(chan os.Signal)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := e.Shutdown(ctx); err != nil {
+		e.Logger.Fatal(err)
+	}
 }
 
 func ginRouter() {
@@ -89,10 +133,6 @@ func fizzbuzzHandler(w http.ResponseWriter, r *http.Request) {
 
 	fb := fizzbuzz.Count(n)
 	fmt.Fprint(w, fb)
-}
-
-func main() {
-	gorillamux()
 }
 
 // Handler
@@ -167,6 +207,36 @@ func credentialHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(map[string]string{
+		"token": ss,
+	})
+}
+
+func credentialEchoHandler(c echo.Context) error {
+	var cred Credential
+
+	if err := c.Bind(&cred); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": err.Error(),
+		})
+	}
+
+	mySigningKey := []byte("AllYourBase")
+
+	// Create the Claims
+	claims := &jwt.StandardClaims{
+		ExpiresAt: time.Now().Add(2 * time.Minute).Unix(),
+		Issuer:    cred.Email,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	ss, err := token.SignedString(mySigningKey)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
 		"token": ss,
 	})
 }

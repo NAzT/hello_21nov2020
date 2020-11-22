@@ -5,9 +5,19 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
+	"time"
 )
 
-func main() {
+var wg sync.WaitGroup
+
+func printout(i int) {
+	time.Sleep(time.Second)
+	fmt.Println(i)
+	wg.Done()
+}
+
+func exerciseCSV() {
 	f, err := os.Open("./oscar_age_male.csv")
 	if err != nil {
 		log.Fatal(err)
