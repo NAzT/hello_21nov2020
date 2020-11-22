@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hello/fizzbuzz"
+	"hello/user"
 	"log"
 	"net/http"
 	"strconv"
@@ -14,6 +15,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 func helloGinHandler(c *gin.Context) {
@@ -92,12 +95,23 @@ func main() {
 	gorillamux()
 }
 
+// Handler
+// HandlerFunc
+// Handle
+// HandleFunc
+
 func gorillamux() {
+	db, err := gorm.Open(sqlite.Open("./users.db"), &gorm.Config{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	r := mux.NewRouter()
 
 	r.HandleFunc("/", helloHandler).Methods(http.MethodGet)
 	r.HandleFunc("/fizzbuzz/{number}", fizzbuzzHandler).Methods(http.MethodGet)
 	r.HandleFunc("/auth", credentialHandler).Methods(http.MethodPost)
+	r.Handle("/users", user.NewHandler(db)).Methods(http.MethodGet)
 
 	srv := &http.Server{
 		Handler: r,

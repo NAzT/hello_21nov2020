@@ -1,17 +1,17 @@
 package fizzbuzz
 
 import (
-	"math/rand"
+	"fmt"
 	"strconv"
-	"time"
 )
 
-func FourFizzBuzz() string {
-	s1 := rand.NewSource(time.Now().UnixNano())
-	r1 := rand.New(s1)
+type Intner interface {
+	Intn(n int) int
+}
 
+func FourFizzBuzz(r1 Intner) string {
 	n1, n2, n3, n4 := r1.Intn(9)+1, r1.Intn(9)+1, r1.Intn(9)+1, r1.Intn(9)+1
-	return Count(n1) + Count(n2) + Count(n3) + Count(n4)
+	return fmt.Sprintf("%s%s%s%s", Count(n1), Count(n2), Count(n3), Count(n4))
 }
 
 func Count(n int) string {
